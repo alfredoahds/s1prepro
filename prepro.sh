@@ -1,26 +1,22 @@
-#!/bin/env bash
+#!/usr/bin/env bash
 #
-# Preprocess a Sentinel 1 scene using ESA SNAP (Sentinel 1 Toolbox) Graph Processing Tool
+# Preprocess Sentinel 1 scenes using gpt
 #
-# Expected to take ~10min for one scene, ~4x concurrency, ~10% sys versus user.
 
-if [ "$#" != "2" ]; then # validate argument count
-    echo Usage: . prepro.sh input_scene.zip output_scene.dim
-else
+for scene in "$@"
+do
+    echo "$scene"
+    DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
+    GPT=$DIR/gpt # symlinked to bin/gpt of local SNAP install
 
-    GPT=./gpt # symlinked to bin/gpt of local SNAP install
+    scene=$scene
+    #mkdir ${scene%.*}
+    radiometriconly=${scene%.*}/temp.dim # temporary intermediate
+    output="${scene%.*}/$(basename ${scene%.*}).dim"
 
-    scene=$1
-    radiometriconly=temp.dim # temporary intermediate
-    output=$2
+    $GPT $DIR/graph.xml -e -Sscene=$scene -t $radiometriconly -c 8192M -q 120
+    echo Finished radiometric corrections, starting terrain correction...
+    $GPT $DIR/graph_tc.xml -e -Sscene=$radiometriconly -t $output -c 8192M -q 120
 
-    # clean workspace
-    rm -r temp.data temp.dim
-
-        $GPT graph.xml -Sscene=$scene -t $radiometriconly
-        $GPT Terrain-Correction -Ssource=$radiometriconly -t $output
-
-    rm -r temp.data temp.dim
-
-fi
-
+    rm -rf ${scene%.*}/temp*
+done
